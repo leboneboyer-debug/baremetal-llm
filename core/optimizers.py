@@ -1,5 +1,4 @@
 import numpy as np
-from core.tensor import Tensor
 
 class Optimizer:
     # Base class for all optimizers

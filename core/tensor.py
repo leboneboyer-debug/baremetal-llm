@@ -1,7 +1,7 @@
 import numpy as np
 
 class Tensor:
-    def __init__(self, data, _children=(), _op=''):
+    def __init__(self, data, requires_grad=True, _children=(), _op=''):
         """
         Initializes a Tensor object
         """
@@ -9,8 +9,8 @@ class Tensor:
             data = data.data
 
         self.data = np.array(data, dtype=np.float32)
-
         self.grad = np.zeros_like(self.data, dtype=np.float32)
+        self.requires_grad = requires_grad
 
         self._backward = lambda: None
         self._prev = set(_children)
@@ -44,7 +44,9 @@ class Tensor:
         other = other if isinstance(other, Tensor) else Tensor(other)
 
         # Forward Pass using tensor addition
-        outer = Tensor(self.data + other.data, (self, other), "+")
+        outer = Tensor(data=self.data + other.data, 
+                    _children=(self, other), 
+                    _op="+")
 
         def _backward():
 
@@ -63,7 +65,9 @@ class Tensor:
         other = other if isinstance(other, Tensor) else Tensor(other)
 
         # Forward Pass using Tensor multplication
-        outer = Tensor(self.data * other.data, (self, other), "*")
+        outer = Tensor(data=self.data * other.data, 
+                    _children=(self, other),
+                    _op="*")
 
         def _backward():
 
@@ -75,7 +79,9 @@ class Tensor:
     
     def __pow__(self, power):
 
-        outer = Tensor(self.data ** power, (self, ), "**")
+        outer = Tensor(data=self.data ** power, 
+                        _children=(self, ), 
+                        _op="**")
 
         def _backward():
             self.grad += Tensor.unbroadcast((power * (self.data ** (power - 1)) * outer.grad), self.data.shape)
@@ -85,7 +91,9 @@ class Tensor:
     
     def sqrt(self):
         # Forward pass: x ** 0.5
-        outer = Tensor(np.sqrt(self.data), (self,), "sqrt")
+        outer = Tensor(data=np.sqrt(self.data), 
+                       _children=(self,), 
+                       _op="sqrt")
 
         def _backward():
             # d/dx(sqrt(x)) = 1 / (2 * sqrt(x))
@@ -109,7 +117,7 @@ class Tensor:
     
 
     def exp(x):
-        outer = Tensor(np.exp(x.data), _children=(x,), _op="exp")
+        outer = Tensor(data=np.exp(x.data), _children=(x,), _op="exp")
 
         def _backward():
             grad = outer.grad.data if isinstance(outer.grad, Tensor) else outer.grad
@@ -129,7 +137,9 @@ class Tensor:
     # =============================
     
     def relu(self):
-        outer = Tensor(np.maximum(0, self.data), (self, ), "reLU")
+        outer = Tensor(data=np.maximum(0, self.data), 
+                    _children=(self, ), 
+                    _op="reLU")
 
         def _backward():
             self.grad += (self.data > 0) * outer.grad
@@ -139,15 +149,24 @@ class Tensor:
     
     def __matmul__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
-        outer = Tensor(self.data @ other.data, (self, other), "@")
+        outer = Tensor(data=self.data @ other.data, 
+                    _children=(self, other), 
+                    _op="@")
 
         def _backward():
-
-            grad_self = outer.grad @ other.data.T
-            grad_other = self.data.T @ outer.grad
-
-            self.grad = self.grad + grad_self
-            other.grad = other.grad + grad_other
+            og = outer.grad.data if isinstance(outer.grad, Tensor) else outer.grad
+            
+            # 1. Gradient w.r.t self (left operand)
+            if self.requires_grad:
+                # Swap last two axes of 'other' instead of doing 'other.data.T'
+                grad_self = og @ np.swapaxes(other.data, -1, -2)
+                self.grad += Tensor.unbroadcast(grad_self, self.data.shape)
+                
+            # 2. Gradient w.r.t other (right operand)
+            if other.requires_grad:
+                # Swap last two axes of 'self' instead of doing 'self.data.T'
+                grad_other = np.swapaxes(self.data, -1, -2) @ og
+                other.grad += Tensor.unbroadcast(grad_other, other.data.shape)
 
         outer._backward = _backward
         return outer
@@ -156,7 +175,9 @@ class Tensor:
 
         # 1. Forward Pass
         out_data = np.sum(self.data, axis=axis, keepdims=keepdims)
-        outer = Tensor(out_data, (self,), "sum")
+        outer = Tensor(data=out_data, 
+                    _children=(self,), 
+                    _op="sum")
 
         # 2. Backward Pass
         def _backward():
@@ -209,7 +230,9 @@ class Tensor:
 
     def reshape(self, *shape):
         shape = shape[0] if isinstance(shape[0], (tuple, list)) else shape
-        outer = Tensor(self.data.reshape(shape), (self, ), "reshape" )
+        outer = Tensor(data=self.data.reshape(shape), 
+                    _children=(self, ), 
+                    _op="reshape" )
 
         def _backward():
             self.grad = outer.grad.reshape(self.data.shape)
@@ -218,7 +241,8 @@ class Tensor:
         return outer
 
     def transpose(self, *axes):
-        outer = Tensor(self.data.transpose(*axes), (self,), "transpose") 
+        outer = Tensor(data=self.data.transpose(*axes), 
+                        _children=(self,), _op="transpose") 
 
         def _backward():
             reversed_axes = self.data.transpose(*axes)

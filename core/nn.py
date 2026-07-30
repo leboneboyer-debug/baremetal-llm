@@ -36,13 +36,16 @@ class EmbeddingLayer(Module):
         super().__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim  = embedding_dim
+
+        weight_data = np.random.randn(num_embeddings, embedding_dim).astype(np.float32) * 0.02
+        self.weight = Tensor(weight_data)
     
     def forward(self, index):
 
         indices = np.array(index, dtype=np.int64)
 
         out_data = self.weight.data[index]
-        outer = Tensor(out_data, (self.weight,), "embedding")
+        outer = Tensor(data=out_data, _children=(self.weight,), _op="embedding")
 
         def _backward():
             grad = outer.grad.data if isinstance(outer.grad, Tensor) else outer.grad
@@ -111,7 +114,7 @@ class RMSLayerNorm(Module):
         self.dim = dim
         self.eps = eps
 
-        self.gamma = Tensor(np.ones(dim, ) , dtype=np.float32)
+        self.gamma = Tensor(np.ones(dim, ))
 
     def forward(self, x):
 
@@ -120,6 +123,7 @@ class RMSLayerNorm(Module):
 
         x_norm = x * rms * self.gamma
         return x_norm
+
 class GELU(Module):
     def forward(self, x):
         return gelu(x)

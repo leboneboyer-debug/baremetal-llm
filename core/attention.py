@@ -37,7 +37,7 @@ class RoPeEmbedding:
 
         x_rotated_data = (x.data * cos) + (self.__rotate_half(x.data) * sin)
 
-        outer = Tensor(x_rotated_data, (x,), "rope")
+        outer = Tensor(data=x_rotated_data, _children=(x,), _op="rope")
 
         def __backward():
             grad = outer.grad.data if isinstance(outer.grad, Tensor) else outer,grad
@@ -76,9 +76,9 @@ class CausalSelfAttention(Module):
         k_data = k.data.reshape(B, T, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
         v_data = v.data.reshape(B, T, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
 
-        q_heads = Tensor(q_data, (q,), "split_heads")
-        k_heads = Tensor(k_data, (k,), "split_heads")
-        v_heads = Tensor(v_data, (v,), "split_heads")
+        q_heads = Tensor(data=q_data, _children=(q,), _op="split_heads")
+        k_heads = Tensor(data=k_data, _children=(k,), _op="split_heads")
+        v_heads = Tensor(data=v_data, _children=(v,), _op="split_heads")
 
         def _backward_split(tensor_in, tensor_out):
             def _backward():
@@ -107,7 +107,7 @@ class CausalSelfAttention(Module):
         
         context_concat = context_data.transpose(0, 2, 1, 3).reshape(B, T, C)
         
-        context_tensor = Tensor(context_concat, _children=(x,), _op="attention") 
+        context_tensor = Tensor(data=context_concat, _children=(x,), _op="attention") 
 
         def _backward_attn():
             grad = context_tensor.grad.data if isinstance(context_tensor.grad, Tensor) else context_tensor.grad

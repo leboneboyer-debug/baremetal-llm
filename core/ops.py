@@ -13,7 +13,7 @@ def softmax(x, axis=-1):
     probs = exp_x / np.sum(exp_x, axis=axis, keepdims=0)
 
     # Create a outside tensor of softmax probabilties
-    outer = Tensor(probs, (x, ), "softmax")
+    outer = Tensor(data=probs, _children=(x, ), _op="softmax")
 
     def _backward():
 
@@ -49,7 +49,7 @@ def cross_entropy_loss(logits, targets):
     loss_val = -np.mean(correct_log_probs)
 
 
-    outer = Tensor(loss_val, (logits, ), "cross-entropy")
+    outer = Tensor(data=loss_val, _children=(logits, ), _op="cross-entropy")
 
     def _backward():
 
@@ -72,7 +72,7 @@ def gelu(x):
 
     outer_data = 0.5 * x.data * (1 + a_x)
 
-    outer = Tensor(outer_data, (x, ), "GeLU")
+    outer = Tensor(data=outer_data, _children=(x, ), _op="GeLU")
 
     def _backward():
 
@@ -100,7 +100,7 @@ def layer_loss(x, gamma, beta, eps=1e-5):
     x_hat = (x.data - mean) * std_inv
     outer_data = gamma.data * x_hat + beta.data
 
-    outer = Tensor(outer_data, (x, gamma, beta), "layer_loss")
+    outer = Tensor(data=outer_data, _children=(x, gamma, beta), _op="layer_loss")
 
     def _backward():
 
